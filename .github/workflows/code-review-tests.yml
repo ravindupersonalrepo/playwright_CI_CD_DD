@@ -27,11 +27,72 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run code review tests
+        id: run-tests
         run: npx playwright test --project=chromium --grep "@codeReview"
 
-      - name: Upload Playwright report
+      - name: Collect test summary
         if: always()
+        id: test-summary
+        shell: bash
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const file = 'test-results/results.xml';
+          let total = 0;
+          let failed = 0;
+          let skipped = 0;
+
+          if (fs.existsSync(file)) {
+            const xml = fs.readFileSync(file, 'utf8');
+            const suiteLine = xml.split('\n').find((line) => line.includes('<testsuites')) || '';
+            const getValue = (name) => {
+              const match = suiteLine.match(new RegExp(`${name}="(\\d+)"`));
+              return match ? Number(match[1]) : 0;
+            };
+            total = getValue('tests');
+            failed = getValue('failures') + getValue('errors');
+            skipped = getValue('skipped');
+          }
+
+          const passed = Math.max(total - failed - skipped, 0);
+          console.log(`total=${total}`);
+          console.log(`passed=${passed}`);
+          console.log(`failed=${failed}`);
+          console.log(`skipped=${skipped}`);
+          NODE
+
+      - name: Upload test reports
+        if: always()
+        id: upload-report
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: code-review-report
+          path: |
+            monocart-report/
+            playwright-report/
+            test-results/
+
+      - name: Send email notification
+        if: always() && secrets.SMTP_SERVER != '' && secrets.SMTP_USERNAME != '' && secrets.SMTP_PASSWORD != '' && secrets.NOTIFY_EMAIL != '' && secrets.MAIL_FROM != ''
+        uses: dawidd6/action-send-mail@v6
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT || '587' }}
+          secure: false
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: Code Review Tests - ${{ steps.run-tests.outcome }}
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: ${{ secrets.MAIL_FROM }}
+          html_body: |
+            <h2>Code Review Test Execution</h2>
+            <p><strong>Status:</strong> ${{ steps.run-tests.outcome }}</p>
+            <p><strong>Total:</strong> ${{ steps.test-summary.outputs.total }}</p>
+            <p><strong>Passed:</strong> ${{ steps.test-summary.outputs.passed }}</p>
+            <p><strong>Failed:</strong> ${{ steps.test-summary.outputs.failed }}</p>
+            <p><strong>Skipped:</strong> ${{ steps.test-summary.outputs.skipped }}</p>
+            <p><strong>Branch:</strong> ${{ github.head_ref }}</p>
+            <p><strong>Target branch:</strong> ${{ github.base_ref }}</p>
+            <p><strong>Workflow run:</strong> <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">Open workflow run</a></p>
+            <p><strong>Report artifact:</strong> <a href="${{ steps.upload-report.outputs.artifact-url }}">Download test reports</a></p>
+            <p><strong>Filtered tests:</strong> Chromium + @codeReview</p>
