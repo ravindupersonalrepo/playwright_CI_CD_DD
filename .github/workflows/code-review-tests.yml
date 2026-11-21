@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUN_MUTATING_TESTS: true
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+      MAIL_FROM: ${{ secrets.MAIL_FROM }}
 
     steps:
       - name: Checkout code
@@ -73,17 +79,17 @@ jobs:
             test-results/
 
       - name: Send email notification
-        if: always() && secrets.SMTP_SERVER != '' && secrets.SMTP_USERNAME != '' && secrets.SMTP_PASSWORD != '' && secrets.NOTIFY_EMAIL != '' && secrets.MAIL_FROM != ''
+        if: ${{ always() && env.SMTP_SERVER != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.NOTIFY_EMAIL != '' && env.MAIL_FROM != '' }}
         uses: dawidd6/action-send-mail@v6
         with:
-          server_address: ${{ secrets.SMTP_SERVER }}
-          server_port: ${{ secrets.SMTP_PORT || '587' }}
+          server_address: ${{ env.SMTP_SERVER }}
+          server_port: ${{ env.SMTP_PORT }}
           secure: false
-          username: ${{ secrets.SMTP_USERNAME }}
-          password: ${{ secrets.SMTP_PASSWORD }}
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
           subject: Code Review Tests - ${{ steps.run-tests.outcome }}
-          to: ${{ secrets.NOTIFY_EMAIL }}
-          from: ${{ secrets.MAIL_FROM }}
+          to: ${{ env.NOTIFY_EMAIL }}
+          from: ${{ env.MAIL_FROM }}
           html_body: |
             <h2>Code Review Test Execution</h2>
             <p><strong>Status:</strong> ${{ steps.run-tests.outcome }}</p>
