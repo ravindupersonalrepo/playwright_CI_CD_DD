@@ -9,7 +9,7 @@ test.describe('Search store journey', () => {
     'This scenario creates a new customer account and adds a product to cart. Set RUN_MUTATING_TESTS=true to enable it.',
   );
 
-  test('@regression @mutating should register, search for Black & White Diamond Heart, and add it to the cart', async ({
+  test('@regression @mutating should register, search for Black & White Diamond Heart @codeReview', async ({
     homePage,
     registerPage,
     header,
@@ -39,7 +39,7 @@ test.describe('Search store journey', () => {
     await expect(header.cartQuantityLabel).toContainText('(1)');
   });
 
-  test('@regression @mutating should register, search for Blue and green Sneaker, and add it to the cart', async ({
+  test('@regression @mutating should register, search for Blue and green Sneaker @codeReview', async ({
     homePage,
     registerPage,
     header,
