@@ -1,0 +1,8 @@
+node_modules/
+playwright-report/
+monocart-report/
+test-results/
+blob-report/
+playwright/.auth/
+.env
+.pnpm-store/

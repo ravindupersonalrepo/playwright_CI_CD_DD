@@ -1,0 +1,26 @@
+{
+  "name": "demowebshop-playwright-framework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end Playwright automation framework for the Demo Web Shop application.",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test tests/api",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:chromium": "playwright test --project=chromium",
+    "report": "playwright show-report",
+    "report:monocart": "playwright test --reporter=monocart-reporter",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:mutating": "playwright test --grep @mutating"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "24.19.2",
+    "dotenv": "18.0.10",
+    "monocart-reporter": "^2.15.1",
+    "typescript": "5.9.3"
+  }
+}
