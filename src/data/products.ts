@@ -1,4 +1,12 @@
 export const products = {
+  search: {
+    blackAndWhiteDiamondHeart: {
+      name: 'Black & White Diamond Heart',
+    },
+    blueAndGreenSneaker: {
+      name: 'Blue and green Sneaker',
+    },
+  },
   computers: {
     accessories: {
       tcpCoachingDay: {
@@ -12,4 +20,3 @@ export const products = {
     },
   },
 } as const;
-
