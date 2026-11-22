@@ -34,9 +34,24 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Check for @codeReview tests
+        id: code-review-check
+        shell: bash
+        run: |
+          if grep -R "@codeReview" tests >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run tagged code review tests in Chromium
         id: run-tests
+        if: steps.code-review-check.outputs.found == 'true'
         run: npx playwright test --project=chromium --grep "@codeReview"
+
+      - name: No @codeReview tests found
+        if: steps.code-review-check.outputs.found != 'true'
+        run: echo "No @codeReview tests found in this pull request context. Skipping code review test run."
 
       - name: Collect test summary
         if: always()
