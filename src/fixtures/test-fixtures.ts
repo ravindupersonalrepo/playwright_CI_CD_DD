@@ -10,6 +10,7 @@ import { ProductDetailsPage } from '@pages/product-details-page';
 import { RegisterPage } from '@pages/register-page';
 import { SearchResultsPage } from '@pages/search-results-page';
 import { BookPage } from '@pages/books-page';
+import { WishlistPage } from '@pages/wishlist-page';
 
 type PageObjects = {
   catalogApiClient: CatalogApiClient;
@@ -22,6 +23,7 @@ type PageObjects = {
   productDetailsPage: ProductDetailsPage;
   cartPage: CartPage;
   booksPage: BookPage;
+  wishlistPage: WishlistPage;
 };
 
 export const test = base.extend<PageObjects>({
@@ -60,6 +62,9 @@ export const test = base.extend<PageObjects>({
   },
   booksPage: async ({ page }, use) => {
     await use(new BookPage(page));
+  },
+  wishlistPage: async ({ page }, use) => {
+    await use(new WishlistPage(page));
   },
 });
 

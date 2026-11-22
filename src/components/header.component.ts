@@ -12,6 +12,7 @@ export class HeaderComponent {
   readonly cartQuantityLabel: Locator;
   readonly currencySelector: Locator;
   readonly selectedCurrencyOption: Locator;
+  readonly wishlistLink: Locator;
 
   constructor(private readonly page: Page) {
     this.registerLink = page.getByRole('link', { name: 'Register' }).first();
@@ -24,6 +25,7 @@ export class HeaderComponent {
     this.cartQuantityLabel = page.locator('.cart-qty').first();
     this.currencySelector = page.locator('#customerCurrency');
     this.selectedCurrencyOption = this.currencySelector.locator('option:checked');
+    this.wishlistLink = page.locator('.header-links a[href="/wishlist"]').first();
   }
 
   async searchFor(searchText: string): Promise<void> {
@@ -60,5 +62,9 @@ export class HeaderComponent {
 
   async expectLoggedInUser(email: string): Promise<void> {
     await expect(this.accountLink).toHaveText(email);
+  }
+
+  async openWishlist(): Promise<void> {
+    await this.wishlistLink.click();
   }
 }
