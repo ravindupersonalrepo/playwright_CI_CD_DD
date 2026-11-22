@@ -1,0 +1,43 @@
+name: Scheduled Regression Tests
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  scheduled-regression-tests:
+    runs-on: ubuntu-latest
+    env:
+      RUN_MUTATING_TESTS: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run regression tests in Chromium
+        run: npx playwright test --project=chromium --grep "@regression"
+
+      - name: Upload regression test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-regression-report
+          path: |
+            monocart-report/
+            playwright-report/
+            test-results/
+
+

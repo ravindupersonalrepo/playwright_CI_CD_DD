@@ -1,7 +1,7 @@
 import { test, expect } from '@fixtures/test-fixtures';
 
 test.describe('Home page', () => {
-  test('@smoke should load the home page and expose core navigation', async ({
+  test('@smoke @regression should load the home page and expose core navigation', async ({
     page,
     homePage,
     header,
