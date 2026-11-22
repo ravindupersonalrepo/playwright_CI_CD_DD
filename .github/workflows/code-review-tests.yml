@@ -1,0 +1,95 @@
+name: Code Review Tests
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+jobs:
+  code-review-tests:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    env:
+      RUN_MUTATING_TESTS: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Check for @codeReview tests
+        id: code-review-check
+        shell: bash
+        run: |
+          if grep -R "@codeReview" tests >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run tagged code review tests in Chromium
+        id: run-tests
+        if: steps.code-review-check.outputs.found == 'true'
+        run: npx playwright test --project=chromium --grep "@codeReview"
+
+      - name: No @codeReview tests found
+        if: steps.code-review-check.outputs.found != 'true'
+        run: echo "No @codeReview tests found in this pull request context. Skipping code review test run."
+
+      - name: Collect test summary
+        if: always()
+        id: test-summary
+        shell: bash
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('fs');
+          const file = 'test-results/results.xml';
+          let total = 0;
+          let failed = 0;
+          let skipped = 0;
+
+          if (fs.existsSync(file)) {
+            const xml = fs.readFileSync(file, 'utf8');
+            const suiteLine = xml.split('\n').find((line) => line.includes('<testsuites')) || '';
+            const getValue = (name) => {
+              const match = suiteLine.match(new RegExp(`${name}="(\\d+)"`));
+              return match ? Number(match[1]) : 0;
+            };
+            total = getValue('tests');
+            failed = getValue('failures') + getValue('errors');
+            skipped = getValue('skipped');
+          }
+
+          const passed = Math.max(total - failed - skipped, 0);
+          console.log(`total=${total}`);
+          console.log(`passed=${passed}`);
+          console.log(`failed=${failed}`);
+          console.log(`skipped=${skipped}`);
+          NODE
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-review-report
+          path: |
+            monocart-report/
+            playwright-report/
+            test-results/

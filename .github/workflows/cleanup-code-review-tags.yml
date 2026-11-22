@@ -1,0 +1,56 @@
+name: Cleanup Code Review Tags
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - closed
+
+jobs:
+  cleanup-tags:
+    if: ${{ github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Remove @codeReview tags
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          changed = False
+          for path in Path('tests').rglob('*.spec.ts'):
+            original = path.read_text(encoding='utf-8')
+            updated = re.sub(r",\s*\{\s*tag:\s*['\"]@codeReview['\"]\s*\}", '', original)
+            updated = re.sub(r"\{\s*tag:\s*['\"]@codeReview['\"]\s*\},\s*", '', updated)
+            updated = re.sub(r"\s*@codeReview", '', updated)
+            if updated != original:
+              path.write_text(updated, encoding='utf-8')
+              changed = True
+
+          if not changed:
+            print('No code review tags found.')
+          PY
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No cleanup commit needed."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests
+          git commit -m "remove code review tags after merge"
+          git push origin HEAD:develop
