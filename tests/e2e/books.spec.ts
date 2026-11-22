@@ -19,7 +19,7 @@ test.describe('Books page', () => {
     console.log('Finished Books page test suite');
   });
 
-  test('@smoke should display the Books button on the home page', async ({
+  test('@smoke @regression should display the Books button on the home page', async ({
     page,
     booksPage,
   }) => {
@@ -50,4 +50,6 @@ test.describe('Books page', () => {
     await booksPage.expectBooksPageVisible();
   });
 });
+
+
 

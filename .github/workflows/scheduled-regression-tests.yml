@@ -2,7 +2,8 @@ name: Scheduled Regression Tests
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 11 * * *'
+    - cron: '0 16 * * *'
   workflow_dispatch:
 
 jobs:
@@ -38,3 +39,5 @@ jobs:
             monocart-report/
             playwright-report/
             test-results/
+
+
