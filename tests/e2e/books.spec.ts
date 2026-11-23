@@ -57,7 +57,7 @@ test.describe('Books page', () => {
     'Set RUN_MUTATING_TESTS=true to enable this mutation test.',
   );
 
-  test('@regression @mutating should add a Books item to the wishlist', { tag: '@codeReview' }, async ({
+  test('@regression @mutating should add a Books item to the wishlist', async ({
     homePage,
     registerPage,
     header,
