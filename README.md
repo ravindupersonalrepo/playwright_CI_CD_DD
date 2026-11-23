@@ -16,7 +16,7 @@ End-to-end automation framework for the Demo Web Shop site using Playwright and 
 - Playwright HTML, Monocart, and JUnit reporting
 - Trace, screenshot, and video capture on failures
 - Portable Windows runner scripts for common local commands
-- GitHub Actions workflow for type-checking and test execution
+- GitHub Actions workflows for code review, smoke, cleanup, and scheduled regression runs
 
 ## Project structure
 
@@ -25,7 +25,10 @@ End-to-end automation framework for the Demo Web Shop site using Playwright and 
 ├── .env.example
 ├── .github
 │   └── workflows
-│       └── playwright.yml
+│       ├── cleanup-code-review-tags.yml
+│       ├── code-review-tests.yml
+│       ├── main-smoke-tests.yml
+│       └── scheduled-regression-tests.yml
 ├── package.json
 ├── playwright.config.ts
 ├── README.md
@@ -52,7 +55,7 @@ End-to-end automation framework for the Demo Web Shop site using Playwright and 
 1. Install dependencies:
 
    ```bash
-   pnpm install
+   npm install
    ```
 
 2. Install Playwright browsers on Windows with the provided helper:
@@ -93,6 +96,80 @@ By default, mutating tests are disabled to avoid creating accounts repeatedly on
 - A fixed `1440x900` viewport is used across browser projects for deterministic layout behavior
 - The register/login scenario is opt-in because it creates a new account on the target application
 
+## Branch and CI flow
+
+- `main` is the stable branch and should only be updated through a pull request from `develop`
+- `develop` is the integration branch for completed feature work
+- feature work should be created from `develop` using branches such as `feature/search-store`
+- feature pull requests into `develop` can tag selected tests with `@codeReview` so CI runs only those review-targeted scenarios
+- after a feature pull request is merged into `develop`, the cleanup workflow removes `@codeReview` tags automatically from `develop`
+- pull requests from `develop` into `main` run the Chromium smoke suite before merge
+- scheduled regression runs execute separately so release pull requests stay fast
+
+## Test tags
+
+- `@smoke` marks fast validation coverage used for `develop` → `main` pull requests
+- `@regression` marks broader UI and API coverage used for scheduled CI runs
+- `@mutating` marks tests that create or change application data and require `RUN_MUTATING_TESTS=true`
+- `@codeReview` is used temporarily on feature branches to run only newly selected review tests before merging into `develop`
+
+### How to use `@codeReview` correctly
+
+Use `@codeReview` only for the new or changed test cases that must run in the feature pull request to `develop`.
+
+Important:
+
+- do not add `@codeReview` inside the test title string like `@smoke` or `@regression`
+- do not add `@codeReview` as a separate plain line above the test
+- add it as a Playwright tag object argument in the `test(...)` call
+- use exactly `@codeReview` with the same spelling and letter case
+- add it only on the feature branch when you want CI to target that specific test
+- after merge into `develop`, the cleanup workflow removes `@codeReview` automatically
+
+Correct example:
+
+```ts
+test('@regression @mutating should register, search for Black & White Diamond Heart', { tag: '@codeReview' }, async ({
+  homePage,
+  registerPage,
+  header,
+  searchResultsPage,
+  productDetailsPage,
+}) => {
+  // test steps
+});
+```
+
+Another correct example:
+
+```ts
+test('@smoke @regression should display the Books button on the home page', { tag: '@codeReview' }, async ({
+  page,
+  booksPage,
+}) => {
+  // test steps
+});
+```
+
+Wrong examples:
+
+```ts
+test('@regression should register a customer @codeReview', async ({
+  page,
+}) => {
+  // wrong because `@codeReview` is inside the title
+});
+```
+
+```ts
+@codeReview
+test('@regression should register a customer', async ({
+  page,
+}) => {
+  // wrong because `@codeReview` is not valid as a standalone line
+});
+```
+
 ## Reporting
 
 - Playwright HTML report is generated in `playwright-report`
@@ -104,15 +181,15 @@ By default, mutating tests are disabled to avoid creating accounts repeatedly on
 ## Useful commands
 
 ```bash
-pnpm test
-pnpm run test:api
-pnpm run test:smoke
-pnpm run test:mutating
-pnpm run test:headed
-pnpm run test:ui
-pnpm run test:chromium
-pnpm run typecheck
-pnpm run report
+npm test
+npm run test:api
+npm run test:smoke
+npm run test:mutating
+npm run test:headed
+npm run test:ui
+npm run test:chromium
+npm run typecheck
+npm run report
 ```
 
 ## Windows runner files
@@ -227,33 +304,46 @@ This opens the generated Monocart HTML report directly from `monocart-report\ind
 
 ## CI
 
-The project includes `/.github/workflows/playwright.yml`.
+The project includes these workflow files:
 
-The workflow:
+- `/.github/workflows/code-review-tests.yml`
+- `/.github/workflows/cleanup-code-review-tags.yml`
+- `/.github/workflows/main-smoke-tests.yml`
+- `/.github/workflows/scheduled-regression-tests.yml`
 
-- installs dependencies with `pnpm install --frozen-lockfile`
-- installs Playwright browsers
-- runs TypeScript type-checking
-- runs the Playwright suite
-- uploads the Playwright HTML report as a build artifact
-- includes an opt-in manual run for `@mutating` tests that create site data
+### `code-review-tests.yml`
 
-### Running the mutating suite in CI
+- triggers on pull requests targeting `develop`
+- checks whether any tests contain `@codeReview`
+- runs only tagged `@codeReview` tests in the Chromium project
+- enables mutating tests with `RUN_MUTATING_TESTS=true`
+- skips cleanly when no `@codeReview` tests are present
+- uploads `code-review-report` with Monocart, Playwright HTML, and JUnit outputs
 
-The default CI run keeps mutating scenarios disabled.
+### `cleanup-code-review-tags.yml`
 
-To run the data-creating suite in GitHub Actions:
+- triggers after a pull request into `develop` is merged
+- removes `@codeReview` tags from test files in `develop`
+- commits the cleanup automatically so `develop` does not keep temporary review tags
 
-- open the `Playwright Tests` workflow
-- choose `Run workflow`
-- enable `run_mutating_tests`
+### `main-smoke-tests.yml`
 
-This runs only the `@mutating` scenarios with `RUN_MUTATING_TESTS=true` so the normal push and pull-request pipeline stays safe.
+- triggers on pull requests targeting `main`
+- runs the Chromium smoke suite with `@smoke`
+- uploads `main-smoke-report`
+
+### `scheduled-regression-tests.yml`
+
+- runs the Chromium regression suite with `@regression`
+- runs on a daily schedule at `4:30 PM` Sri Lanka time and `9:30 PM` Sri Lanka time
+- also supports manual runs from the GitHub Actions page with `workflow_dispatch`
+- uploads `scheduled-regression-report`
 
 ## Sample scenarios
 
-- `@smoke` Home page loads and core navigation is visible
+- `@smoke @regression` Home page loads and core navigation is visible
 - `@smoke @regression` Guest user can search for a product and add it to the cart
+- `@smoke @regression` Books button is visible on the home page
 - `@regression` Guest user can change the display currency
 - `@api @smoke` Catalog home page responds with core content
 - `@api @regression` Search endpoint returns the configured product
@@ -269,5 +359,4 @@ This runs only the `@mutating` scenarios with `RUN_MUTATING_TESTS=true` so the n
 - Use API tests to validate server responses for catalog and product flows without opening a browser
 - Isolate test data and make data-creating tests opt-in
 - Use CI to keep type safety and core coverage healthy on every change
-
 
