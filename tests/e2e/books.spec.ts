@@ -1,4 +1,6 @@
 import { test, expect } from '@fixtures/test-fixtures';
+import { createRandomUser } from '@utils/data-factory';
+import { environment } from '@utils/env';
 
 test.describe('Books page', () => {
   test.beforeAll(async () => {
@@ -49,6 +51,55 @@ test.describe('Books page', () => {
     await expect(page).toHaveURL(/books/i);
     await booksPage.expectBooksPageVisible();
   });
+
+  test.skip(
+    !environment.runMutatingTests,
+    'Set RUN_MUTATING_TESTS=true to enable this mutation test.',
+  );
+
+  test('@regression @mutating should add a Books item to the wishlist', { tag: '@codeReview' }, async ({
+    homePage,
+    registerPage,
+    header,
+    booksPage,
+    wishlistPage,
+  }) => {
+    const user = createRandomUser();
+
+    // Register a new customer
+    await registerPage.goto();
+    await registerPage.register(user);
+
+    await expect(registerPage.registrationResult).toHaveText(
+      'Your registration completed',
+    );
+
+    await registerPage.continueAfterRegistration();
+    await header.expectLoggedInUser(user.email);
+
+    // Open Books
+    await homePage.goto();
+    await booksPage.clickBooksButton();
+
+    // Verify the Books page and Fiction category
+    await booksPage.expectBooksPageVisible();
+    await booksPage.expectFictionVisible();
+
+    // Verify the second product and capture its name
+    await expect(booksPage.productItemByIndex(2)).toBeVisible();
+
+    const productName = await booksPage.getProductNameByIndex(2);
+    expect(productName).not.toBe('');
+
+    // Add the second product to Wishlist
+    await booksPage.addProductToWishlistByIndex(2);
+
+    // Open Wishlist and verify the product
+    await header.openWishlist();
+    await wishlistPage.expectLoaded();
+    await wishlistPage.expectProductInWishlist(productName);
+  });
+
 });
 
 
