@@ -8,7 +8,7 @@ test.describe('Digital downloads cart journey', () => {
     'This scenario registers a customer and adds a product to the cart. Set RUN_MUTATING_TESTS=true to enable it.',
   );
 
-  test('@regression @mutating should add a Digital Downloads product to the cart', { tag: '@codeReview' }, async ({
+  test('@regression @mutating should add a Digital Downloads product to the cart', async ({
     page,
     homePage,
     registerPage,
