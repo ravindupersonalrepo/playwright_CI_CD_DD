@@ -129,34 +129,37 @@ Important:
 Correct example:
 
 ```ts
-test('@regression @mutating should register, search for Black & White Diamond Heart', { tag: '@codeReview' }, async ({
-  homePage,
-  registerPage,
-  header,
-  searchResultsPage,
-  productDetailsPage,
-}) => {
-  // test steps
-});
+test(
+  "@regression @mutating should register, search for Black & White Diamond Heart",
+  { tag: "@codeReview" },
+  async ({
+    homePage,
+    registerPage,
+    header,
+    searchResultsPage,
+    productDetailsPage,
+  }) => {
+    // test steps
+  },
+);
 ```
 
 Another correct example:
 
 ```ts
-test('@smoke @regression should display the Books button on the home page', { tag: '@codeReview' }, async ({
-  page,
-  booksPage,
-}) => {
-  // test steps
-});
+test(
+  "@smoke @regression should display the Books button on the home page",
+  { tag: "@codeReview" },
+  async ({ page, booksPage }) => {
+    // test steps
+  },
+);
 ```
 
 Wrong examples:
 
 ```ts
-test('@regression should register a customer @codeReview', async ({
-  page,
-}) => {
+test("@regression should register a customer @codeReview", async ({ page }) => {
   // wrong because `@codeReview` is inside the title
 });
 ```
@@ -360,3 +363,4 @@ The project includes these workflow files:
 - Isolate test data and make data-creating tests opt-in
 - Use CI to keep type safety and core coverage healthy on every change
 
+Updated
