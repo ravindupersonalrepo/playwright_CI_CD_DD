@@ -4,26 +4,11 @@ pipeline {
   options {
     timestamps()
     disableConcurrentBuilds()
-    buildDiscarder(logRotator(numToKeepStr: '20'))
-  }
-
-  triggers {
-    cron('''TZ=Asia/Colombo
-30 16,21 * * *''')
-  }
-
-  parameters {
-    choice(
-      name: 'PIPELINE_MODE',
-      choices: ['auto', 'code-review', 'main-smoke', 'scheduled-regression', 'cleanup-code-review-tags'],
-      description: 'auto detects pull-request and branch builds; choose a mode to run manually.'
-    )
   }
 
   environment {
     CI = 'true'
-    PLAYWRIGHT_JUNIT_OUTPUT_NAME = 'results.xml'
-    PLAYWRIGHT_JUNIT_OUTPUT_DIR = 'test-results'
+    PROJECT_DIR = "${env.WORKSPACE}"
   }
 
   stages {
@@ -32,24 +17,29 @@ pipeline {
         script {
           env.RESOLVED_PIPELINE_MODE = resolvePipelineMode()
           echo "Pipeline mode: ${env.RESOLVED_PIPELINE_MODE}"
+          echo "BRANCH_NAME: ${env.BRANCH_NAME}"
+          echo "CHANGE_ID: ${env.CHANGE_ID}"
+          echo "CHANGE_TARGET: ${env.CHANGE_TARGET}"
         }
       }
     }
 
     stage('Checkout') {
       steps {
-        checkout scm
+        dir(env.PROJECT_DIR) {
+          bat 'git status'
+        }
       }
     }
 
     stage('Install dependencies') {
       when {
-        expression { env.RESOLVED_PIPELINE_MODE in ['code-review', 'main-smoke', 'scheduled-regression'] }
+        expression { env.RESOLVED_PIPELINE_MODE != 'cleanup-code-review-tags' && env.RESOLVED_PIPELINE_MODE != 'skip' }
       }
       steps {
-        script {
-          runCommand('npm install')
-          installPlaywrightChromium()
+        dir(env.PROJECT_DIR) {
+          bat 'npm install'
+          bat 'npx playwright install chromium'
         }
       }
     }
@@ -62,17 +52,26 @@ pipeline {
         RUN_MUTATING_TESTS = 'true'
       }
       steps {
-        script {
-          if (hasCodeReviewTests()) {
-            runCommand('npx playwright test --project=chromium --grep "@codeReview"')
-          } else {
-            echo 'No @codeReview tests found. Skipping code review execution.'
+        dir(env.PROJECT_DIR) {
+          script {
+            bat 'if exist code-review-list.txt del /f /q code-review-list.txt'
+
+            def exitCode = bat(
+              script: '@npx playwright test --project=chromium --grep "@codeReview" --list > code-review-list.txt 2>&1',
+              returnStatus: true
+            )
+
+            def listOutput = readFile("${env.PROJECT_DIR}\\code-review-list.txt")
+            echo listOutput
+
+            if (listOutput.contains('No tests found') || listOutput.contains('Total: 0 tests in 0 files')) {
+              echo 'No @codeReview tests found. Skipping code review execution.'
+            } else if (exitCode != 0) {
+              error('Failed while listing @codeReview tests.')
+            } else {
+              bat 'npx playwright test --project=chromium --grep "@codeReview"'
+            }
           }
-        }
-      }
-      post {
-        always {
-          publishArtifacts('code-review-report')
         }
       }
     }
@@ -82,13 +81,8 @@ pipeline {
         expression { env.RESOLVED_PIPELINE_MODE == 'main-smoke' }
       }
       steps {
-        script {
-          runCommand('npx playwright test --project=chromium --grep "@smoke"')
-        }
-      }
-      post {
-        always {
-          publishArtifacts('main-smoke-report')
+        dir(env.PROJECT_DIR) {
+          bat 'npx playwright test --project=chromium --grep "@smoke"'
         }
       }
     }
@@ -101,13 +95,8 @@ pipeline {
         RUN_MUTATING_TESTS = 'true'
       }
       steps {
-        script {
-          runCommand('npx playwright test --project=chromium --grep "@regression"')
-        }
-      }
-      post {
-        always {
-          publishArtifacts('scheduled-regression-report')
+        dir(env.PROJECT_DIR) {
+          bat 'npx playwright test --project=chromium --grep "@regression"'
         }
       }
     }
@@ -117,47 +106,34 @@ pipeline {
         expression { env.RESOLVED_PIPELINE_MODE == 'cleanup-code-review-tags' }
       }
       steps {
-        script {
-          if (lastCommitMessage().trim() == 'remove code review tags after merge') {
-            echo 'Cleanup commit detected. Skipping to avoid a loop.'
-            return
-          }
-
-          runCommand('python scripts/cleanup-code-review-tags.py')
-
-          if (hasGitChanges()) {
-            withCredentials([usernamePassword(credentialsId: 'jenkins-github-push', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
-              script {
-                configureGitIdentity()
-                if (isUnix()) {
-                  sh 'git add tests scripts/cleanup-code-review-tags.py'
-                  sh 'git commit -m "remove code review tags after merge"'
-                  sh '''
-                    git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/ravindupersonalrepo/playwright_CI_CD_DD.git
-                    git push origin HEAD:develop
-                  '''
-                } else {
-                  bat 'git add tests scripts/cleanup-code-review-tags.py'
-                  bat 'git commit -m "remove code review tags after merge"'
-                  bat 'git remote set-url origin https://%GIT_USERNAME%:%GIT_PASSWORD%@github.com/ravindupersonalrepo/playwright_CI_CD_DD.git'
-                  bat 'git push origin HEAD:develop'
-                }
-              }
-            }
-          } else {
-            echo 'No @codeReview tags found. Nothing to commit.'
-          }
+        dir(env.PROJECT_DIR) {
+          bat 'python scripts\\cleanup-code-review-tags.py'
+          bat 'git status'
         }
+      }
+    }
+
+    stage('Skip build') {
+      when {
+        expression { env.RESOLVED_PIPELINE_MODE == 'skip' }
+      }
+      steps {
+        echo 'No matching automatic flow for this branch/build. Skipping cleanly.'
+      }
+    }
+  }
+
+  post {
+    always {
+      dir(env.PROJECT_DIR) {
+        junit allowEmptyResults: true, testResults: 'test-results/results.xml'
+        archiveArtifacts allowEmptyArchive: true, artifacts: 'monocart-report/**,playwright-report/**,test-results/**'
       }
     }
   }
 }
 
 def resolvePipelineMode() {
-  if (params.PIPELINE_MODE && params.PIPELINE_MODE != 'auto') {
-    return params.PIPELINE_MODE
-  }
-
   if (env.CHANGE_ID && env.CHANGE_TARGET == 'develop') {
     return 'code-review'
   }
@@ -166,67 +142,13 @@ def resolvePipelineMode() {
     return 'main-smoke'
   }
 
-  def causes = currentBuild.rawBuild.getCauses()*.class*.simpleName.flatten()
-  if (causes.contains('TimerTriggerCause')) {
-    return 'scheduled-regression'
-  }
-
   if (!env.CHANGE_ID && env.BRANCH_NAME == 'develop') {
     return 'cleanup-code-review-tags'
   }
 
-  return 'scheduled-regression'
-}
-
-def runCommand(String command) {
-  if (isUnix()) {
-    sh command
-  } else {
-    bat command
-  }
-}
-
-def installPlaywrightChromium() {
-  if (isUnix()) {
-    sh 'npx playwright install --with-deps chromium'
-  } else {
-    bat 'npx playwright install chromium'
-  }
-}
-
-def hasCodeReviewTests() {
-  if (isUnix()) {
-    return sh(script: "grep -R '@codeReview' tests >/dev/null 2>&1", returnStatus: true) == 0
+  if (!env.CHANGE_ID && env.BRANCH_NAME == 'main') {
+    return 'main-smoke'
   }
 
-  return powershell(returnStatus: true, script: "if (Get-ChildItem -Recurse tests\\*.spec.ts | Select-String -Pattern '@codeReview' -Quiet) { exit 0 } else { exit 1 }") == 0
-}
-
-def hasGitChanges() {
-  def status = isUnix()
-    ? sh(script: 'git diff --quiet', returnStatus: true)
-    : bat(script: '@git diff --quiet', returnStatus: true)
-  return status != 0
-}
-
-def lastCommitMessage() {
-  return isUnix()
-    ? sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-    : bat(script: '@git log -1 --pretty=%B', returnStdout: true).trim()
-}
-
-def configureGitIdentity() {
-  if (isUnix()) {
-    sh 'git config user.name "jenkins"'
-    sh 'git config user.email "jenkins@local"'
-  } else {
-    bat 'git config user.name "jenkins"'
-    bat 'git config user.email "jenkins@local"'
-  }
-}
-
-def publishArtifacts(String artifactName) {
-  junit allowEmptyResults: true, testResults: 'test-results/results.xml'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'monocart-report/**,playwright-report/**,test-results/**', fingerprint: true, onlyIfSuccessful: false
-  echo "Archived artifacts for ${artifactName}"
+  return 'skip'
 }
