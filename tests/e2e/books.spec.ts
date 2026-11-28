@@ -57,7 +57,7 @@ test.describe('Books page', () => {
     'Set RUN_MUTATING_TESTS=true to enable this mutation test.',
   );
 
-  test('@regression @mutating should add a Books item to the wishlist', async ({
+  test('@regression @mutating should add a Books item to the wishlist', { tag: '@codeReview' }, async ({
     homePage,
     registerPage,
     header,
@@ -94,7 +94,6 @@ test.describe('Books page', () => {
     // Add the second product to Wishlist
     await booksPage.addProductToWishlistByIndex(2);
 
-    // Open Wishlist and verify the product
     await header.openWishlist();
     await wishlistPage.expectLoaded();
     await wishlistPage.expectProductInWishlist(productName);
